@@ -22,7 +22,7 @@ class Collector(object):
     The Collector class is a base class for all metric collectors.
     """
 
-    def __init__(self, config, handlers, custom_config=None, custom_name=None):
+    def __init__(self, config, handlers, instance_name=None):
         """
         Create a new instance of the Collector class
         """
@@ -51,12 +51,13 @@ class Collector(object):
         # Check for config file in config directory
         configfile = os.path.join(config['server']['collectors_config_path'], cls.__name__) + '.conf'
         if os.path.exists(configfile):
+            collectorConfig = configobj.ConfigObj(configfile)
             # Merge Collector config file
-            self.config.merge(configobj.ConfigObj(configfile))
-        if custom_config:
-            # Merge custom config file
-            self.config.merge(custom_config)
-        self.custom_name = custom_name
+            self.config.merge(collectorConfig)
+            # Merge our section, if there is one
+            if instance_name and 'named instances' in collectorConfig.sections \
+            and instance_name in collectorConfig['named instances'].sections:
+                self.config.merge(collectorConfig['named instances'][instance_name])
 
     def get_default_config(self):
         """

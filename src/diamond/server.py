@@ -185,33 +185,37 @@ class Server(object):
         # Return Collector classes
         return collectors
 
-    def load_alternative_collectors(self, collectors, path):
+    def load_named_collectors(self, collectors, path):
         # Initialize return value
-        alternative_collectors = {}
+        named_collectors = {}
         
         # Get a list of files in the directory, if the directory exists
         if not os.path.exists(path):
             raise OSError, "Directory does not exist: %s" % (path)
             
         # Log
-        self.log.debug("Loading alternative Collectors from: %s" % (path))
+        self.log.debug("Loading named Collectors from: %s" % (path))
 
-        for f in glob.glob(os.path.join(path, '*-*.conf')):
+        for f in glob.glob(os.path.join(path, '*.conf')):
             if os.path.isfile(f):
                 fname = os.path.basename(f)
-                cls_name, alt_name = fname.split('-', 1)
+                cls_name = fname[:-5]
                 if cls_name in collectors:
-                    alternative_collectors[fname[:-5]] = (collectors[cls_name], f)
-        return alternative_collectors
+                    config = configobj.ConfigObj(f)
+                    if 'named instances' not in config.sections:
+                        continue
+                    for section in config['named instances'].sections:
+                        named_collectors[cls_name + '-' + section] = (collectors[cls_name], section)
+        return named_collectors 
 
-    def init_collector(self, cls, custom_config=None, custom_name=None):
+    def init_collector(self, cls, instance_name=None):
         """
         Initialize collector
         """
         collector = None
         try:
             # Initialize Collector
-            collector = cls(self.config, self.handlers, custom_config=custom_config, custom_name=custom_name)
+            collector = cls(self.config, self.handlers, instance_name=instance_name)
             # Log
             self.log.debug("Initialized Collector: %s" % (cls.__name__))
         except Exception, e:
@@ -283,9 +287,9 @@ class Server(object):
         # Load collectors
         collectors = self.load_collectors(self.config['server']['collectors_path'])
 
-        # Load collectors with alternative configurations
-        alternative_collectors = self.load_alternative_collectors(collectors,
-                                                                  self.config['server']['collectors_config_path'])
+        # Load collectors with named instances
+        named_collectors = self.load_named_collectors(collectors,
+                                                      self.config['server']['collectors_config_path'])
         # Setup Collectors
         for cls in collectors.values():
             # Initialize Collector
@@ -294,13 +298,10 @@ class Server(object):
             self.schedule_collector(c)
         
         # Setup Collectors
-        for alt_name, cls_and_config in alternative_collectors.iteritems():
-            cls, config_file = cls_and_config
-            custom_config = configobj.ConfigObj(config_file)
-            # remove class name from alternative name
-            cls_name, custom_name = alt_name.split('-', 1)
+        for alt_name in named_collectors:
+            cls, section = named_collectors[alt_name]
             # Initialize Collector
-            c = self.init_collector(cls, custom_config=custom_config, custom_name=custom_name)
+            c = self.init_collector(cls, instance_name=section)
             # Schedule Collector
             self.schedule_collector(c, custom_name=alt_name)
 

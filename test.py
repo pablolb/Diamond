@@ -115,7 +115,7 @@ class BaseCollectorTest(unittest.TestCase):
         c = Collector(config, [])
         self.assertEquals('custom.localhost', c.get_hostname())
 
-    def test_CustomConfigOverridesSetCustomHostname(self):
+    def test_SubConfigOverridesCollectorsConfig(self):
         temp_dir = tempfile.gettempdir()
         if not temp_dir:
             self.skipTest("No temporary directory in system")
@@ -130,12 +130,12 @@ class BaseCollectorTest(unittest.TestCase):
         self.tmpfile = os.path.join(temp_dir, 'Collector.conf')
         collectorConfig = configobj.ConfigObj(self.tmpfile)
         collectorConfig['hostname'] = "Collector.hostname"
+        collectorConfig['named instances'] = {}
+        collectorConfig['named instances']['Instance B'] = {}
+        collectorConfig['named instances']['Instance B']['hostname'] = 'custom.hostname'
         collectorConfig.write()
 
-        customConfig = configobj.ConfigObj()
-        customConfig['hostname'] = 'custom.hostname'
-
-        c = Collector(config, [], custom_config=customConfig)
+        c = Collector(config, [], instance_name='Instance B')
 
         self.assertEquals('custom.hostname', c.get_hostname())
 
