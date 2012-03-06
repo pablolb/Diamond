@@ -22,7 +22,7 @@ class Collector(object):
     The Collector class is a base class for all metric collectors.
     """
 
-    def __init__(self, config, handlers, custom_config=None):
+    def __init__(self, config, handlers, custom_config=None, custom_name=None):
         """
         Create a new instance of the Collector class
         """
@@ -56,6 +56,7 @@ class Collector(object):
         if custom_config:
             # Merge custom config file
             self.config.merge(custom_config)
+        self.custom_name = custom_name
 
     def get_default_config(self):
         """

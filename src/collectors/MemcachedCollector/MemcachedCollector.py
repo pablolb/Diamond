@@ -22,6 +22,9 @@ class MemcachedCollector(diamond.collector.Collector):
             # Set to true to send stats as <prefix>.<host>.<port>.memcached.(...)
             'override_hostname':  False,
             
+            # Interpret custom_name as "host:port"
+            'custom_name_is_host': False,
+            
             # Which rows of 'status' you would like to publish.
             # 'telnet host port' and type stats and hit enter to see the list of
             # possibilities.
@@ -34,20 +37,30 @@ class MemcachedCollector(diamond.collector.Collector):
         ignored = ('libevent', 'pid', 'pointer_size', 'time', 'version')
 
         config = self.config
+
+        host = config['host']
+        port = config['port']
+
+        if self.custom_name and config['custom_name_is_host']:
+            parts = self.custom_name.split(':')
+            host = parts[0]
+            if len(parts) == 2:
+                port = parts[1]
+        
         if config['override_hostname']:
-            config['hostname'] = "%s.%s" % (config['host'].replace('.', '_'), str(config['port']))
+            config['hostname'] = "%s.%s" % (host.replace('.', '_'), str(port))
+
         stats = {}
         # connect
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.connect((config['host'], int(config['port'])))
+            sock.connect((host, int(port)))
             # request stats
             sock.send('stats\n')
             # something big enough to get whatever is sent back
             data = sock.recv(4096)
         except socket.error as e:
-            self.log.exception('Failed to get stats from %s:%s',
-                               config['host'], config['port'])
+            self.log.exception('Failed to get stats from %s:%s', host, port)
         else:
             # parse stats
             for line in data.split('\r\n'):

@@ -204,14 +204,14 @@ class Server(object):
                     alternative_collectors[fname[:-5]] = (collectors[cls_name], f)
         return alternative_collectors
 
-    def init_collector(self, cls, custom_config=None):
+    def init_collector(self, cls, custom_config=None, custom_name=None):
         """
         Initialize collector
         """
         collector = None
         try:
             # Initialize Collector
-            collector = cls(self.config, self.handlers, custom_config=custom_config)
+            collector = cls(self.config, self.handlers, custom_config=custom_config, custom_name=custom_name)
             # Log
             self.log.debug("Initialized Collector: %s" % (cls.__name__))
         except Exception, e:
@@ -297,8 +297,10 @@ class Server(object):
         for alt_name, cls_and_config in alternative_collectors.iteritems():
             cls, config_file = cls_and_config
             custom_config = configobj.ConfigObj(config_file)
+            # remove class name from alternative name
+            cls_name, custom_name = alt_name.split('-', 1)
             # Initialize Collector
-            c = self.init_collector(cls, custom_config=custom_config)
+            c = self.init_collector(cls, custom_config=custom_config, custom_name=custom_name)
             # Schedule Collector
             self.schedule_collector(c, custom_name=alt_name)
 
