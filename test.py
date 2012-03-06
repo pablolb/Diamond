@@ -6,6 +6,8 @@ import sys
 import unittest
 import inspect
 import traceback
+import tempfile
+import os.path
 
 from StringIO import StringIO
 from contextlib import nested
@@ -97,6 +99,10 @@ getCollectorTests(cPath)
 
 
 class BaseCollectorTest(unittest.TestCase):
+
+    def setUp(self):
+        unittest.TestCase.setUp(self)
+        self.tmpfile = None
     
     def test_SetCustomHostname(self):
         config = configobj.ConfigObj()
@@ -108,6 +114,34 @@ class BaseCollectorTest(unittest.TestCase):
         }
         c = Collector(config, [])
         self.assertEquals('custom.localhost', c.get_hostname())
+
+    def test_CustomConfigOverridesSetCustomHostname(self):
+        temp_dir = tempfile.gettempdir()
+        if not temp_dir:
+            self.skipTest("No temporary directory in system")
+        
+        config = configobj.ConfigObj()
+        config['server'] = {}
+        config['server']['collectors_config_path'] = temp_dir
+        config['collectors'] = {}
+        config['collectors']['default'] = {}
+
+        
+        self.tmpfile = os.path.join(temp_dir, 'Collector.conf')
+        collectorConfig = configobj.ConfigObj(self.tmpfile)
+        collectorConfig['hostname'] = "Collector.hostname"
+        collectorConfig.write()
+
+        customConfig = configobj.ConfigObj()
+        customConfig['hostname'] = 'custom.hostname'
+
+        c = Collector(config, [], custom_config=customConfig)
+
+        self.assertEquals('custom.hostname', c.get_hostname())
+
+    def tearDown(self):
+        if self.tmpfile:
+            os.unlink(self.tmpfile)
 
 
 

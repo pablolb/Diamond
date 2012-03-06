@@ -10,6 +10,7 @@ import signal
 import inspect
 import pwd
 import grp
+import glob
 
 # Path Fix
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),"../")))
@@ -184,14 +185,33 @@ class Server(object):
         # Return Collector classes
         return collectors
 
-    def init_collector(self, cls):
+    def load_alternative_collectors(self, collectors, path):
+        # Initialize return value
+        alternative_collectors = {}
+        
+        # Get a list of files in the directory, if the directory exists
+        if not os.path.exists(path):
+            raise OSError, "Directory does not exist: %s" % (path)
+            
+        # Log
+        self.log.debug("Loading alternative Collectors from: %s" % (path))
+
+        for f in glob.glob(os.path.join(path, '*-*.conf')):
+            if os.path.isfile(f):
+                fname = os.path.basename(f)
+                cls_name, alt_name = fname.split('-', 1)
+                if cls_name in collectors:
+                    alternative_collectors[fname[:-5]] = (collectors[cls_name], f)
+        return alternative_collectors
+
+    def init_collector(self, cls, custom_config=None):
         """
         Initialize collector
         """
         collector = None
         try:
             # Initialize Collector
-            collector = cls(self.config, self.handlers)
+            collector = cls(self.config, self.handlers, custom_config=custom_config)
             # Log
             self.log.debug("Initialized Collector: %s" % (cls.__name__))
         except Exception, e:
@@ -201,7 +221,7 @@ class Server(object):
         # Return collector
         return collector
 
-    def schedule_collector(self, c, interval_task=True):
+    def schedule_collector(self, c, interval_task=True, custom_name=None):
         """
         Schedule collector
         """
@@ -216,6 +236,8 @@ class Server(object):
 
         # Get collector schedule
         for name,schedule in c.get_schedule().items():
+            if custom_name is not None:
+                name = custom_name
             # Get scheduler args
             func, args, splay, interval = schedule
 
@@ -261,12 +283,24 @@ class Server(object):
         # Load collectors
         collectors = self.load_collectors(self.config['server']['collectors_path'])
 
+        # Load collectors with alternative configurations
+        alternative_collectors = self.load_alternative_collectors(collectors,
+                                                                  self.config['server']['collectors_config_path'])
         # Setup Collectors
         for cls in collectors.values():
             # Initialize Collector
             c = self.init_collector(cls)
             # Schedule Collector
             self.schedule_collector(c)
+        
+        # Setup Collectors
+        for alt_name, cls_and_config in alternative_collectors.iteritems():
+            cls, config_file = cls_and_config
+            custom_config = configobj.ConfigObj(config_file)
+            # Initialize Collector
+            c = self.init_collector(cls, custom_config=custom_config)
+            # Schedule Collector
+            self.schedule_collector(c, custom_name=alt_name)
 
         # Start main loop
         self.mainloop()
