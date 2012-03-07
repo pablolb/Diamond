@@ -19,8 +19,8 @@ class MemcachedCollector(diamond.collector.Collector):
             'host':     'localhost',
             'port':     '11211',
 
-            # Set to true to send stats as <prefix>.<host>.<port>.memcached.(...)
-            'override_hostname':  False,
+            # Set to true to send stats as <prefix>.<host>.memcached.<port>.(...)
+            'add_port_to_path':  False,
             
             # Which rows of 'status' you would like to publish.
             # 'telnet host port' and type stats and hit enter to see the list of
@@ -37,9 +37,6 @@ class MemcachedCollector(diamond.collector.Collector):
 
         host = config['host']
         port = config['port']
-
-        if config['override_hostname']:
-            config['hostname'] = "%s.%s" % (host.replace('.', '_'), str(port))
 
         stats = {}
         # connect
@@ -58,7 +55,10 @@ class MemcachedCollector(diamond.collector.Collector):
                 pieces = line.split(' ')
                 if pieces[0] != 'STAT' or pieces[1] in ignored:
                     continue
-                stats[pieces[1]] = pieces[2]
+                if config['add_port_to_path']:
+                    stats[str(port) + '.' + pieces[1]] = pieces[2]
+                else:
+                    stats[pieces[1]] = pieces[2]
 
         return stats
 
